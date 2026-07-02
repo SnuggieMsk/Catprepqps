@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAT Prep Question Bank — 10 Years of PYQ-based Practice (2016–2025)</title>
+<meta name="description" content="Practice question bank for the CAT exam built around the last 10 years of papers (2016–2025): year-wise VARC, DILR and QA question sets with instant answers, worked solutions and paper analysis.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f46e5'/%3E%3Ctext x='32' y='42' font-family='Arial,Helvetica,sans-serif' font-size='26' font-weight='bold' fill='%23fff' text-anchor='middle'%3ECAT%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<!-- Top bar -->
+<header class="topbar">
+  <button id="menuBtn" class="icon-btn" aria-label="Toggle menu">☰</button>
+  <a class="brand" href="#/home">
+    <span class="brand-badge">CAT</span>
+    <span class="brand-text">Prep Question Bank<small>Common Admission Test · PYQ 2016–2025</small></span>
+  </a>
+  <div class="topbar-spacer"></div>
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="Search questions & topics…  (press /)" autocomplete="off">
+    <div id="searchResults" class="search-results" hidden></div>
+  </div>
+  <div class="fontctl" role="group" aria-label="Text size">
+    <button id="fontDown" class="icon-btn font-btn" title="Smaller text" aria-label="Smaller text">A<small>−</small></button>
+    <button id="fontUp" class="icon-btn font-btn" title="Larger text" aria-label="Larger text">A<small>+</small></button>
+  </div>
+  <button id="themeBtn" class="icon-btn" aria-label="Toggle theme" title="Toggle light/dark">🌙</button>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar">
+    <div class="progress-box">
+      <div class="progress-label"><span>Your progress</span><span id="progressPct">0%</span></div>
+      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+      <button id="resetProgress" class="link-btn">Reset progress</button>
+    </div>
+    <nav id="nav" class="nav"></nav>
+  </aside>
+  <div id="overlay" class="overlay"></div>
+
+  <!-- Main -->
+  <main id="main" class="main">
+    <div id="content" class="content markdown-body"></div>
+    <div id="chapterNav" class="chapter-nav"></div>
+    <footer class="page-footer">
+      Independent practice material modeled on the publicly known pattern, topics and difficulty of CAT papers from 2016–2025.
+      Questions are original re-creations for practice — not official papers. Not affiliated with or endorsed by the IIMs.
+      CAT is conducted by the Indian Institutes of Management.
+    </footer>
+  </main>
+</div>
+
+<script src="vendor/marked.min.js"></script>
+<script src="content.js"></script>
+<script src="data/cat2016.js"></script>
+<script src="data/cat2017.js"></script>
+<script src="data/cat2018.js"></script>
+<script src="data/cat2019.js"></script>
+<script src="data/cat2020.js"></script>
+<script src="data/cat2021.js"></script>
+<script src="data/cat2022.js"></script>
+<script src="data/cat2023.js"></script>
+<script src="data/cat2024.js"></script>
+<script src="data/cat2025.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
