@@ -409,7 +409,7 @@ window.CAT_DATA.push({
     "|---|---|",
     "| Questions | 26 |",
     "| Sectional time | 40 minutes |",
-    "| MCQ vs TITA | 18 MCQs + 8 TITA (widely reported) |",
+    "| MCQ vs TITA | ~18–20 MCQs + 6–8 TITA (sources disagree on the exact split; Career Launcher's slot analyses reported 6 TITA, others report 8) |",
     "| Difficulty | Easy to moderate — the scoring section of 2020 |",
     "",
     "## Reported topic mix (approximate, per slot)",

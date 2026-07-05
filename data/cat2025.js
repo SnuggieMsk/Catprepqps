@@ -208,7 +208,7 @@ window.CAT_DATA.push({
     "| Parameter | CAT 2025 DILR (all slots) |",
     "|---|---|",
     "| Questions | **22**, in **5 sets** (typically 2 sets of 5 Qs + 3 sets of 4 Qs) |",
-    "| MCQ / TITA | TITA-heavy: roughly **7–11 TITA** per slot depending on set mix |",
+    "| MCQ / TITA | TITA-heavy: consistently **~10–11 TITA** per slot (about half the section) |",
     "| Balance | **More LR-oriented than CAT 2024** — fewer pure DI sets |",
     "| Sectional time | 40 minutes |",
     "| Marking | +3 / −1 on MCQ; no negative marking on TITA |",
