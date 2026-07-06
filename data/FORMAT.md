@@ -60,3 +60,26 @@ Hard rules:
 - RC passages: 150–220 words, original writing, on a theme similar to what that year's paper actually used.
 - DILR sets: original data/constraints in the style of that year's set types; 4 questions per set.
 - Every explanation ends with the `📌 Modeled on:` line saying which real-paper theme it mirrors.
+
+## Visual diagrams (optional, `[[VIZ]]` blocks)
+
+Any question's explanation may embed ONE diagram spec, on its own line, anywhere before the closing `</details>` (conventionally right before the `📌 Modeled on:` line):
+
+```
+[[VIZ]]{"type":"circle-chord","title":"...","radius":10,"chords":[{"length":16,"distance":6,"label":"AB"}]}[[/VIZ]]
+```
+
+The app (`viz.js`) strips this marker from the rendered explanation and renders an inline SVG in its place. Supported `type` values and their fields:
+
+- `circle-chord` — `{radius, chords:[{length, distance, label}, ...up to 2]}`
+- `right-triangle` — `{a, b, c, altitude?:bool}` (a,b = legs, c = hypotenuse)
+- `cone` — `{r, h, l?}`
+- `number-line` — `{min, max, shade:[[from,to,"open-left"|"open-right"|"open-both"?]], points:[{x,label?}]}`
+- `venn2` — `{labels:["A","B"], counts:{onlyA, onlyB, both, none?}}`
+- `venn3` — `{labels:["A","B","C"], counts:{a,b,c,ab,bc,ac,abc,none?}}` (a/b/c = only-that-set regions)
+- `bar-chart` — `{categories:[...], series:[{name?, values:[...]}]}`
+- `arrangement-row` — `{seats:[...], circular?:bool}`
+- `race-track` — `{length, runners:[{name, pos}]}`
+- `network` — `{nodes:[...], edges:[["A","B"], ...]}`
+
+Rules: only add a diagram where it genuinely clarifies the **solved** configuration/numbers (not the raw stem); every number in the spec must exactly match the question's actual given/derived values — never invented data; valid one-line JSON, double-quoted.

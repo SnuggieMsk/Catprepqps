@@ -293,11 +293,13 @@
     var actions = opts_.timed ? "" :
       '<span class="q-actions"><button class="q-reveal" title="Show the answer without attempting (no penalty)">👁 Reveal</button>'
       + '<button class="q-flag' + (isMarked(num, q.id) ? " on" : "") + '" title="Bookmark for review">' + (isMarked(num, q.id) ? "★" : "☆") + "</button></span>";
+    var vz = window.CATViz ? window.CATViz.extract(q.expl) : { text: q.expl, spec: null };
+    var vizHtml = vz.spec && window.CATViz ? window.CATViz.render(vz.spec) : "";
     return '<div class="q-card" data-tier="' + t.cls + '" data-qid="' + q.id + '" data-correct="' + q.correct + '" data-tita="' + (q.tita ? 1 : 0) + '">'
       + '<div class="q-head"><span class="q-num">Q' + q.id + '</span><span class="q-tierlabel ' + t.cls + '">' + t.dot + " " + esc(t.label) + '</span><span class="p-case-marks">' + tag + "</span>" + actions + "</div>"
       + '<div class="q-text">' + inlineMd(q.q) + "</div>"
       + '<div class="q-opts">' + opts + "</div>"
-      + '<div class="q-expl markdown-body" hidden>' + md(q.expl) + "</div></div>";
+      + '<div class="q-expl markdown-body" hidden>' + vizHtml + md(vz.text) + "</div></div>";
   }
   function renderTierCards(parsed, num, opts_) {
     var h = "";
