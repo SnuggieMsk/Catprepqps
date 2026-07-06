@@ -46,6 +46,22 @@
     if (t) t.textContent = pctv + "%";
   }
 
+  // ---------- Bookmarks (localStorage) ----------
+  var BKEY = "cat_bookmarks_v1";
+  function loadMarks() { try { return JSON.parse(localStorage.getItem(BKEY)) || {}; } catch (e) { return {}; } }
+  var bookmarks = loadMarks();
+  function markKey(num, qid) { return num + ":" + qid; }
+  function isMarked(num, qid) { return !!bookmarks[markKey(num, qid)]; }
+  function toggleMark(num, qid) {
+    var k = markKey(num, qid);
+    if (bookmarks[k]) delete bookmarks[k]; else bookmarks[k] = true;
+    try { localStorage.setItem(BKEY, JSON.stringify(bookmarks)); } catch (e) {}
+    return !!bookmarks[k];
+  }
+  function markedCount(num) {
+    return Object.keys(bookmarks).filter(function (k) { return k.indexOf(num + ":") === 0; }).length;
+  }
+
   // ---------- Theme ----------
   var TKEY = "cat_theme";
   function applyTheme(t) {
@@ -76,6 +92,11 @@
     var nav = document.getElementById("nav");
     var html = '<a class="nav-chap-head" href="#/home"><span class="nav-chap-num">🏠</span>'
       + '<span class="nav-chap-title">Home &amp; Exam Guide</span></a>';
+    html += '<div class="nav-module">Study Tools</div>'
+      + '<a class="nav-tool" data-link="stats" href="#/stats"><span class="nav-chap-num">📊</span><span class="nav-chap-title">My Stats</span></a>'
+      + '<a class="nav-tool" data-link="formulas" href="#/tools/formulas"><span class="nav-chap-num">📐</span><span class="nav-chap-title">QA Formula Sheet</span></a>'
+      + '<a class="nav-tool" data-link="strategy" href="#/tools/strategy"><span class="nav-chap-num">🧭</span><span class="nav-chap-title">Strategy Playbook</span></a>'
+      + '<a class="nav-tool" data-link="percentile" href="#/tools/percentile"><span class="nav-chap-num">🎯</span><span class="nav-chap-title">Percentile Estimator</span></a>';
     var lastModule = null;
     CH.forEach(function (c) {
       if (c.module !== lastModule) { html += '<div class="nav-module">' + esc(c.module) + "</div>"; lastModule = c.module; }
@@ -110,10 +131,16 @@
     });
   }
   function highlightNav(num, view) {
-    document.querySelectorAll(".nav-chap-head").forEach(function (n) { n.classList.remove("active"); });
+    document.querySelectorAll(".nav-chap-head,.nav-tool").forEach(function (n) { n.classList.remove("active"); });
     document.querySelectorAll(".nav-sub a").forEach(function (a) { a.classList.remove("active"); });
     document.querySelectorAll(".nav-chapter").forEach(function (w) { w.classList.remove("open"); });
     if (!num) {
+      var h = location.hash, toolKey = null;
+      if (h.indexOf("/stats") > -1) toolKey = "stats";
+      else if (h.indexOf("/tools/formulas") > -1) toolKey = "formulas";
+      else if (h.indexOf("/tools/strategy") > -1) toolKey = "strategy";
+      else if (h.indexOf("/tools/percentile") > -1) toolKey = "percentile";
+      if (toolKey) { var t = document.querySelector('.nav-tool[data-link="' + toolKey + '"]'); if (t) t.classList.add("active"); return; }
       var home = document.querySelector('.nav-chap-head[href="#/home"]'); if (home) home.classList.add("active");
       return;
     }
@@ -131,12 +158,20 @@
 
   function renderHome() {
     var totalQ = CH.reduce(function (a, c) { return a + questionCount(c); }, 0);
+    var last = null; try { last = localStorage.getItem("cat_last"); } catch (e) {}
+    var lastLabel = "";
+    if (last) {
+      var lm = last.match(/^#\/ch\/(\d{2,4})\//), lc = lm && chapterByNum(lm[1]);
+      if (lc) lastLabel = lc.module + " " + (lc.badge || "");
+    }
     var hero = '<div class="hero"><h1>🎯 CAT Prep Question Bank</h1>'
-      + '<p>Year-wise practice built around the <b>last 10 years of CAT papers (2016–2025)</b> — VARC, DILR &amp; Quant question sets with instant answers, full worked solutions and paper-level insights. '
-      + '<b>' + totalQ + ' questions</b> and counting. Study at your own pace.</p>'
+      + '<p>Year-wise practice built around the <b>last 10 years of CAT papers (2016–2025)</b> — VARC, DILR &amp; Quant question sets with instant answers, full worked solutions, timed tests and paper-level insights. '
+      + '<b>' + totalQ + ' questions</b>, every answer independently verified. Study at your own pace.</p>'
       + '<div class="hero-cta">'
-      + (CH.length ? '<a href="#/ch/' + CH[0].num + '/questions" class="cta">📝 Start with CAT ' + esc(String(CH[0].module).replace(/\D/g, "")) + '</a>' : "")
-      + '<a href="#/ch/163/questions" class="cta ghost">⏪ Or begin from 2016</a></div></div>';
+      + (lastLabel ? '<a href="' + last + '" class="cta">▶ Continue ' + esc(lastLabel) + '</a>' : "")
+      + (CH.length ? '<a href="#/ch/' + CH[0].num + '/questions" class="cta' + (lastLabel ? " ghost" : "") + '">📝 Start with CAT ' + esc(String(CH[0].module).replace(/\D/g, "")) + '</a>' : "")
+      + '<a href="#/tools/strategy" class="cta ghost">🧭 Strategy Playbook</a>'
+      + '<a href="#/stats" class="cta ghost">📊 My Stats</a></div></div>';
     var cards = "", lastModule = null;
     CH.forEach(function (c) {
       if (c.module !== lastModule) {
@@ -248,29 +283,33 @@
   }
 
   var quizCtx = null;
-  function qCard(q, t) {
+  function qCard(q, t, num, opts_) {
+    opts_ = opts_ || {};
     var opts = "";
     ["A", "B", "C", "D"].forEach(function (L, i) {
       opts += '<button class="q-opt" data-i="' + i + '"><span class="q-letter">' + L + '</span><span class="q-otext">' + inlineMd(q.options[i]) + "</span></button>";
     });
     var tag = q.tita ? "⌨️ TITA · no negative" : "+3 / −1";
-    return '<div class="q-card" data-tier="' + t.cls + '" data-qid="' + q.id + '" data-correct="' + q.correct + '">'
-      + '<div class="q-head"><span class="q-num">Q' + q.id + '</span><span class="q-tierlabel ' + t.cls + '">' + t.dot + " " + esc(t.label) + '</span><span class="p-case-marks">' + tag + "</span></div>"
+    var actions = opts_.timed ? "" :
+      '<span class="q-actions"><button class="q-reveal" title="Show the answer without attempting (no penalty)">👁 Reveal</button>'
+      + '<button class="q-flag' + (isMarked(num, q.id) ? " on" : "") + '" title="Bookmark for review">' + (isMarked(num, q.id) ? "★" : "☆") + "</button></span>";
+    return '<div class="q-card" data-tier="' + t.cls + '" data-qid="' + q.id + '" data-correct="' + q.correct + '" data-tita="' + (q.tita ? 1 : 0) + '">'
+      + '<div class="q-head"><span class="q-num">Q' + q.id + '</span><span class="q-tierlabel ' + t.cls + '">' + t.dot + " " + esc(t.label) + '</span><span class="p-case-marks">' + tag + "</span>" + actions + "</div>"
       + '<div class="q-text">' + inlineMd(q.q) + "</div>"
       + '<div class="q-opts">' + opts + "</div>"
       + '<div class="q-expl markdown-body" hidden>' + md(q.expl) + "</div></div>";
   }
-  function renderTierCards(parsed) {
+  function renderTierCards(parsed, num, opts_) {
     var h = "";
     parsed.tiers.forEach(function (t) {
       var count = tierQuestions(t).length;
       h += '<div class="q-tier-head ' + t.cls + '">' + t.dot + " " + esc(t.label) + ' <span class="q-tier-count">' + count + " questions</span></div>";
       t.items.forEach(function (it) {
-        if (it.kind === "q") { h += qCard(it.q, t); return; }
+        if (it.kind === "q") { h += qCard(it.q, t, num, opts_); return; }
         h += '<div class="p-case" data-tier="' + t.cls + '"><div class="p-case-head">🧩 ' + esc(it.title)
           + ' <span class="p-case-marks">' + it.questions.length + " questions</span></div>"
           + '<div class="p-case-scenario markdown-body">' + md(it.scenario) + "</div>";
-        it.questions.forEach(function (q) { h += qCard(q, t); });
+        it.questions.forEach(function (q) { h += qCard(q, t, num, opts_); });
         h += "</div>";
       });
     });
@@ -283,6 +322,7 @@
   }
   function saveQuiz() { try { localStorage.setItem(quizCtx.qkey, JSON.stringify(quizCtx.saved)); } catch (e) {} }
 
+  // chosen === -1 means "revealed without attempting": show the answer, no penalty
   function applyAnswer(card, chosen, restore) {
     card.classList.add("answered");
     var correct = parseInt(card.dataset.correct, 10);
@@ -292,8 +332,9 @@
       if (idx === chosen && chosen !== correct) o.classList.add("wrong");
       if (idx === chosen) o.classList.add("chosen");
     });
+    var rv = card.querySelector(".q-reveal"); if (rv) rv.disabled = true;
     card.querySelector(".q-expl").hidden = false;
-    if (!restore) {
+    if (!restore && chosen !== -1) {
       var fl = chosen === correct ? "flash-ok" : "flash-no";
       card.classList.add(fl); setTimeout(function () { card.classList.remove(fl); }, 700);
     }
@@ -303,6 +344,7 @@
     Object.keys(quizCtx.saved).forEach(function (qid) {
       var q = map[qid]; if (!q) return;
       ans++;
+      if (quizCtx.saved[qid] === -1) return; // revealed, not attempted
       if (quizCtx.saved[qid] === q.correct) { correct++; net += 3; }
       else if (!q.tita) net -= 1;
     });
@@ -323,8 +365,35 @@
     quizCtx.parsed.tiers.forEach(function (t) {
       for (var i = t.items.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = t.items[i]; t.items[i] = t.items[j]; t.items[j] = tmp; }
     });
-    var list = document.getElementById("qList"); list.innerHTML = renderTierCards(quizCtx.parsed);
+    var list = document.getElementById("qList"); list.innerHTML = renderTierCards(quizCtx.parsed, quizCtx.num);
     Object.keys(quizCtx.saved).forEach(function (qid) { var card = list.querySelector('.q-card[data-qid="' + qid + '"]'); if (card) applyAnswer(card, quizCtx.saved[qid], true); });
+    applyListFilter(currentFilter());
+  }
+  function currentFilter() {
+    var a = document.querySelector(".q-chip.active");
+    return a ? a.dataset.f : "all";
+  }
+  // JS-driven filtering so the ⭐ bookmark filter can join the tier filters
+  function applyListFilter(key) {
+    var list = document.getElementById("qList"); if (!list) return;
+    list.querySelectorAll(".q-card").forEach(function (c) {
+      var show = key === "all"
+        || (key === "marked" ? isMarked(quizCtx.num, c.dataset.qid) : c.dataset.tier === key);
+      c.style.display = show ? "" : "none";
+    });
+    list.querySelectorAll(".p-case").forEach(function (p) {
+      var any = false;
+      p.querySelectorAll(".q-card").forEach(function (c) { if (c.style.display !== "none") any = true; });
+      p.style.display = any ? "" : "none";
+    });
+    list.querySelectorAll(".q-tier-head").forEach(function (h) {
+      var any = false, el = h.nextElementSibling;
+      while (el && !el.classList.contains("q-tier-head")) {
+        if (el.style.display !== "none" && (el.classList.contains("q-card") || el.classList.contains("p-case"))) any = true;
+        el = el.nextElementSibling;
+      }
+      h.style.display = any ? "" : "none";
+    });
   }
   function toggleReading() {
     var c = chapterByNum(quizCtx.num);
@@ -351,25 +420,42 @@
 
     var counts = { easy: 0, med: 0, hard: 0, mix: 0 };
     parsed.tiers.forEach(function (t) { counts[t.cls] += tierQuestions(t).length; });
+    var mk = markedCount(num);
     var chips = '<div class="q-filters"><button class="q-chip active" data-f="all">All (' + total + ")</button>";
     if (counts.easy) chips += '<button class="q-chip" data-f="easy">🟢 Easy (' + counts.easy + ")</button>";
     if (counts.med) chips += '<button class="q-chip" data-f="med">🟡 Medium (' + counts.med + ")</button>";
     if (counts.hard) chips += '<button class="q-chip" data-f="hard">🔴 Hard (' + counts.hard + ")</button>";
     if (counts.mix) chips += '<button class="q-chip" data-f="mix">📝 Sets (' + counts.mix + ")</button>";
-    chips += "</div>";
-    var bar = '<div class="q-scorebar"><div class="q-score-text">📊 <b id="qAns">0</b>/' + total + ' answered · <b id="qCorrect">0</b> correct · net <b id="qNet">0</b> <span id="qPct" class="q-pct"></span></div>'
+    chips += '<button class="q-chip" data-f="marked">⭐ Marked (<span id="qMarkCount">' + mk + "</span>)</button></div>";
+    var tb = timedBest(num);
+    var bar = '<div class="q-scorebar"><div class="q-score-text">📊 <b id="qAns">0</b>/' + total + ' answered · <b id="qCorrect">0</b> correct · net <b id="qNet">0</b> <span id="qPct" class="q-pct"></span>'
+      + (tb ? ' · ⏱ timed best <b>' + tb.best + "/" + tb.max + "</b>" : "") + '</div>'
       + '<div class="q-progress"><div id="qFill" class="q-progress-fill"></div></div>'
       + '<div id="qDone" class="q-done" hidden><span id="qDoneMsg"></span></div></div>';
-    var tools = '<div class="quiz-tools"><button id="qShuffle">🔀 Shuffle</button><button id="qReset">↺ Reset answers</button><button id="qReading">📄 Reading mode</button><button id="toTop">↑ Top</button></div>';
-    var tip = '<div class="q-tip">💡 Tap an option to lock your answer — you will instantly see the right choice and a full solution. Scoring mirrors CAT: <b>+3</b> correct, <b>−1</b> wrong MCQ, <b>no negative</b> for TITA-style questions.</div>';
+    var tools = '<div class="quiz-tools"><button id="qTimed" class="q-timed-btn">⏱ Timed test</button><button id="qShuffle">🔀 Shuffle</button><button id="qReset">↺ Reset answers</button><button id="qReading">📄 Reading mode</button><button id="toTop">↑ Top</button></div>';
+    var tip = '<div class="q-tip">💡 Tap an option to lock your answer — you will instantly see the right choice and a full solution. <b>👁 Reveal</b> shows the answer without attempting (no penalty); <b>⭐</b> bookmarks a question for review. Scoring mirrors CAT: <b>+3</b> correct, <b>−1</b> wrong MCQ, <b>no negative</b> for TITA-style questions.</div>';
     contentEl.innerHTML = viewTabs(num, "questions")
-      + '<div id="quizInteractive">' + chips + bar + tip + tools + '<div id="qList">' + renderTierCards(parsed) + "</div></div>";
+      + '<div id="quizInteractive">' + chips + bar + tip + tools + '<div id="qList">' + renderTierCards(parsed, num) + "</div></div>";
     bindMarkRead(num, "questions");
 
     var root = document.getElementById("quizInteractive"), list = document.getElementById("qList");
     Object.keys(saved).forEach(function (qid) { var card = list.querySelector('.q-card[data-qid="' + qid + '"]'); if (card) applyAnswer(card, saved[qid], true); });
     updateQuizScore();
     list.addEventListener("click", function (e) {
+      var flag = e.target.closest(".q-flag");
+      if (flag) {
+        var fcard = flag.closest(".q-card");
+        var on = toggleMark(num, fcard.dataset.qid);
+        flag.textContent = on ? "★" : "☆"; flag.classList.toggle("on", on);
+        var mc = document.getElementById("qMarkCount"); if (mc) mc.textContent = markedCount(num);
+        return;
+      }
+      var rev = e.target.closest(".q-reveal");
+      if (rev) {
+        var rcard = rev.closest(".q-card"); if (rcard.classList.contains("answered")) return;
+        applyAnswer(rcard, -1, false); quizCtx.saved[rcard.dataset.qid] = -1; saveQuiz(); updateQuizScore();
+        return;
+      }
       var btn = e.target.closest(".q-opt"); if (!btn) return;
       var card = btn.closest(".q-card"); if (card.classList.contains("answered")) return;
       var i = parseInt(btn.dataset.i, 10);
@@ -379,13 +465,226 @@
       ch.addEventListener("click", function () {
         root.querySelectorAll(".q-chip").forEach(function (x) { x.classList.remove("active"); });
         ch.classList.add("active");
-        list.className = ""; if (ch.dataset.f !== "all") list.classList.add("filter-" + ch.dataset.f);
+        applyListFilter(ch.dataset.f);
       });
     });
+    document.getElementById("qTimed").onclick = function () { renderTimed(num); };
     document.getElementById("qReset").onclick = function () { if (confirm("Clear your saved answers for this section?")) { quizCtx.saved = {}; saveQuiz(); renderQuestions(num); } };
     document.getElementById("qShuffle").onclick = shuffleQuiz;
     document.getElementById("qReading").onclick = toggleReading;
     document.getElementById("toTop").onclick = function () { window.scrollTo({ top: 0, behavior: "smooth" }); };
+  }
+
+  /* =====================================================================
+     TIMED TEST MODE — exam pacing (~1.8 min/question), feedback after submit
+     ===================================================================== */
+  var timedCtx = null;
+  function clearTimed() { if (timedCtx && timedCtx.timerId) clearInterval(timedCtx.timerId); timedCtx = null; }
+  function timedBest(num) { try { return JSON.parse(localStorage.getItem("cat_timed_" + num)); } catch (e) { return null; } }
+  function fmtClock(s) { var m = Math.floor(s / 60), ss = s % 60; return (m < 10 ? "0" : "") + m + ":" + (ss < 10 ? "0" : "") + ss; }
+  function renderTimed(num) {
+    clearTimed();
+    var c = chapterByNum(num), parsed = parseQuiz(c.questions);
+    var qs = allQuestions(parsed), total = qs.length;
+    if (!total) { renderQuestions(num); return; }
+    var mins = Math.max(10, Math.min(60, Math.round(total * 1.8)));
+    timedCtx = { num: num, parsed: parsed, qs: qs, total: total, choices: {}, submitted: false, remaining: mins * 60, timerId: null };
+    contentEl.innerHTML = viewTabs(num, "questions")
+      + '<div class="timer-bar"><span class="timer-clock" id="tmClock">' + fmtClock(timedCtx.remaining) + '</span>'
+      + '<span class="timer-meta">⏱ Timed test · <b id="tmAtt">0</b>/' + total + ' attempted · ' + mins + ' min (~1.8 min/question, CAT pacing)</span>'
+      + '<span class="timer-actions"><button class="calc-btn" id="tmSubmit">Submit</button>'
+      + '<button class="calc-btn ghost" id="tmExit">✕ Exit</button></span></div>'
+      + '<div class="q-tip">🧪 Exam conditions: pick answers freely (you can change them), nothing is revealed until you <b>Submit</b> or time runs out. Unanswered questions score 0. Your practice-mode answers are untouched.</div>'
+      + '<div id="qList">' + renderTierCards(parsed, num, { timed: true }) + "</div>"
+      + '<div class="quiz-tools"><button id="tmSubmit2">✅ Submit test</button></div>';
+    var list = document.getElementById("qList");
+    list.addEventListener("click", function (e) {
+      if (!timedCtx || timedCtx.submitted) return;
+      var btn = e.target.closest(".q-opt"); if (!btn) return;
+      var card = btn.closest(".q-card");
+      card.querySelectorAll(".q-opt").forEach(function (o) { o.classList.remove("chosen"); });
+      btn.classList.add("chosen");
+      timedCtx.choices[card.dataset.qid] = parseInt(btn.dataset.i, 10);
+      var att = document.getElementById("tmAtt"); if (att) att.textContent = Object.keys(timedCtx.choices).length;
+    });
+    document.getElementById("tmSubmit").onclick = function () { finishTimed(false); };
+    document.getElementById("tmSubmit2").onclick = function () { finishTimed(false); };
+    document.getElementById("tmExit").onclick = function () { if (timedCtx && !timedCtx.submitted && Object.keys(timedCtx.choices).length && !confirm("Exit without submitting? This attempt will be discarded.")) return; renderQuestions(num); };
+    timedCtx.timerId = setInterval(function () {
+      if (!timedCtx) return;
+      timedCtx.remaining--;
+      var cl = document.getElementById("tmClock");
+      if (cl) { cl.textContent = fmtClock(Math.max(0, timedCtx.remaining)); cl.classList.toggle("low", timedCtx.remaining <= 300); }
+      if (timedCtx.remaining <= 0) finishTimed(true);
+    }, 1000);
+    window.scrollTo(0, 0);
+  }
+  function finishTimed(auto) {
+    if (!timedCtx || timedCtx.submitted) return;
+    timedCtx.submitted = true;
+    clearInterval(timedCtx.timerId); timedCtx.timerId = null;
+    var byId = {}; timedCtx.qs.forEach(function (q) { byId[q.id] = q; });
+    var att = 0, correct = 0, net = 0;
+    var list = document.getElementById("qList");
+    list.querySelectorAll(".q-card").forEach(function (card) {
+      var q = byId[card.dataset.qid];
+      var ch = timedCtx.choices.hasOwnProperty(card.dataset.qid) ? timedCtx.choices[card.dataset.qid] : -1;
+      card.querySelectorAll(".q-opt").forEach(function (o) { o.classList.remove("chosen"); });
+      if (ch !== -1) {
+        att++;
+        if (ch === q.correct) { correct++; net += 3; }
+        else if (!q.tita) net -= 1;
+      }
+      applyAnswer(card, ch, true);
+    });
+    var max = timedCtx.total * 3, num = timedCtx.num;
+    var prev = timedBest(num), isBest = !prev || net > prev.best;
+    var rec = { best: isBest ? net : prev.best, last: net, max: max, count: (prev ? prev.count || 0 : 0) + 1 };
+    try { localStorage.setItem("cat_timed_" + num, JSON.stringify(rec)); } catch (e) {}
+    var acc = att ? Math.round(correct / att * 100) : 0;
+    var bar = document.querySelector(".timer-bar");
+    if (bar) {
+      bar.outerHTML = '<div class="q-done p-done ' + (net >= max * 0.55 ? "pass" : "fail") + '" style="display:block">'
+        + '<b>' + (auto ? "⏰ Time's up!" : "✅ Submitted.") + "</b> Net score <b>" + net + "/" + max + "</b> · "
+        + att + "/" + timedCtx.total + " attempted · " + correct + " correct (" + acc + "% accuracy)"
+        + (isBest && rec.count > 1 ? " · 🏆 new personal best!" : (prev && !isBest ? " · best so far: " + rec.best : ""))
+        + ' <span class="p-passnote">All solutions are now revealed below. Wrong MCQs cost −1, exactly like CAT.</span>'
+        + '<div style="margin-top:8px"><button class="calc-btn" id="tmRetry">↻ Retry timed</button> '
+        + '<button class="calc-btn ghost" id="tmBack">← Back to practice</button></div></div>';
+      document.getElementById("tmRetry").onclick = function () { renderTimed(num); };
+      document.getElementById("tmBack").onclick = function () { renderQuestions(num); };
+    }
+    window.scrollTo(0, 0);
+  }
+
+  /* =====================================================================
+     STATS DASHBOARD + STUDY TOOLS
+     ===================================================================== */
+  function chapterStat(c) {
+    var parsed = parseQuiz(c.questions), qs = allQuestions(parsed);
+    var saved = {}; try { saved = JSON.parse(localStorage.getItem("cat_quiz_" + c.num)) || {}; } catch (e) {}
+    var byId = {}; qs.forEach(function (q) { byId[q.id] = q; });
+    var ans = 0, correct = 0, net = 0;
+    Object.keys(saved).forEach(function (qid) {
+      var q = byId[qid]; if (!q) return;
+      ans++;
+      if (saved[qid] === -1) return;
+      if (saved[qid] === q.correct) { correct++; net += 3; }
+      else if (!q.tita) net -= 1;
+    });
+    return { total: qs.length, ans: ans, correct: correct, net: net, timed: timedBest(c.num) };
+  }
+  function renderStats() {
+    var rows = "", agg = {}, gAns = 0, gCor = 0, gTot = 0, gNet = 0;
+    var weak = [];
+    CH.forEach(function (c) {
+      var s = chapterStat(c);
+      gAns += s.ans; gCor += s.correct; gTot += s.total; gNet += s.net;
+      var a = agg[c.badge] = agg[c.badge] || { ans: 0, cor: 0, tot: 0 };
+      a.ans += s.ans; a.cor += s.correct; a.tot += s.total;
+      var acc = s.ans ? Math.round(s.correct / s.ans * 100) : null;
+      if (s.ans >= 8 && acc !== null) weak.push({ label: c.module + " " + c.badge, acc: acc, num: c.num });
+      rows += "<tr><td>" + esc(c.module) + '</td><td><a href="#/ch/' + c.num + '/questions">' + esc(c.badge) + "</a></td>"
+        + "<td>" + s.ans + "/" + s.total + "</td><td>" + s.correct + "</td>"
+        + "<td>" + (acc === null ? "—" : acc + "%") + "</td><td>" + (s.ans ? s.net : "—") + "</td>"
+        + "<td>" + (s.timed ? s.timed.best + "/" + s.timed.max + (s.timed.count > 1 ? " (" + s.timed.count + " runs)" : "") : "—") + "</td></tr>";
+    });
+    weak.sort(function (a, b) { return a.acc - b.acc; });
+    var secRows = "";
+    ["VARC", "DILR", "QA"].forEach(function (b) {
+      var a = agg[b]; if (!a) return;
+      secRows += "<tr><td><b>" + b + "</b></td><td>" + a.ans + "/" + a.tot + "</td><td>" + a.cor + "</td><td>" + (a.ans ? Math.round(a.cor / a.ans * 100) + "%" : "—") + "</td></tr>";
+    });
+    var weakHtml = "";
+    if (weak.length >= 2) {
+      weakHtml = '<div class="q-tip">🎯 <b>Your weakest cells right now:</b> '
+        + weak.slice(0, 2).map(function (w) { return '<a href="#/ch/' + w.num + '/questions">' + esc(w.label) + "</a> (" + w.acc + "%)"; }).join(" and ")
+        + " — that's next session's practice plan.</div>";
+    } else if (!gAns) {
+      weakHtml = '<div class="q-tip">No answers recorded yet — pick a year from the sidebar and start practising. Everything you do is tracked here automatically (stored only in your browser).</div>';
+    }
+    contentEl.innerHTML =
+      '<div class="hero"><h1>📊 My Stats</h1><p>Everything below lives in your browser only. <b>' + gAns + "</b> of <b>" + gTot + "</b> questions answered · <b>" + gCor + "</b> correct"
+      + (gAns ? " (" + Math.round(gCor / gAns * 100) + "% accuracy) · cumulative net <b>" + gNet + "</b>" : "") + ".</p></div>"
+      + weakHtml
+      + '<div class="markdown-body"><h2>By section</h2><table><thead><tr><th>Section</th><th>Answered</th><th>Correct</th><th>Accuracy</th></tr></thead><tbody>' + secRows + "</tbody></table>"
+      + "<h2>By paper</h2><table><thead><tr><th>Year</th><th>Section</th><th>Answered</th><th>Correct</th><th>Accuracy</th><th>Net</th><th>⏱ Timed best</th></tr></thead><tbody>" + rows + "</tbody></table>"
+      + '<p><em>Accuracy is correct ÷ answered (revealed questions count as answered but not correct). Net mirrors CAT: +3 correct, −1 wrong MCQ, no negative for TITA.</em></p></div>';
+    chapterNavEl.innerHTML = ""; highlightNav(null);
+    document.title = "My Stats — CAT Prep Question Bank";
+  }
+
+  // Percentile anchors: widely-reported coaching estimates (raw marks), NOT official figures.
+  var PCTL = {
+    "2016": { O: [[99, 168], [95, 136], [85, 106]] },
+    "2017": { V: [[95, 58]], D: [[99, 44], [95, 30]], Q: [[99, 67], [95, 56]], O: [[99, 155]] },
+    "2018": { O: [[99, 160]] },
+    "2019": { V: [[99, 62]], D: [[99, 48]], Q: [[99, 60]] },
+    "2020": { O: [[99, 101]] },
+    "2021": { V: [[99, 38]], D: [[99, 28]], Q: [[99, 41]], O: [[99, 98]] },
+    "2022": { V: [[99, 40]], D: [[99, 27]], Q: [[99, 34]], O: [[99, 90]] },
+    "2023": { O: [[99, 83], [95, 57]] },
+    "2024": { V: [[99, 40]], D: [[99, 32]], Q: [[99, 33]], O: [[99, 87]] },
+    "2025": { V: [[99, 42]], D: [[99, 30]], Q: [[99, 32]] }
+  };
+  var SECTION_MAX = { // raw sectional/overall maxima by year (3 marks per question)
+    "2016": { V: 102, D: 96, Q: 102, O: 300 }, "2017": { V: 102, D: 96, Q: 102, O: 300 },
+    "2018": { V: 102, D: 96, Q: 102, O: 300 }, "2019": { V: 102, D: 96, Q: 102, O: 300 },
+    "2020": { V: 78, D: 72, Q: 78, O: 228 }, "2021": { V: 72, D: 60, Q: 66, O: 198 },
+    "2022": { V: 72, D: 60, Q: 66, O: 198 }, "2023": { V: 72, D: 60, Q: 66, O: 198 },
+    "2024": { V: 72, D: 66, Q: 66, O: 204 }, "2025": { V: 72, D: 66, Q: 66, O: 204 }
+  };
+  function renderPercentile() {
+    var years = Object.keys(PCTL).sort().reverse();
+    var yopts = years.map(function (y) { return '<option value="' + y + '">CAT ' + y + "</option>"; }).join("");
+    contentEl.innerHTML =
+      '<div class="hero"><h1>🎯 Percentile Estimator</h1><p>Pick a year and section, enter a raw score (+3 / −1 scale), and see where it lands against <b>widely-reported coaching-institute estimates</b> for that paper. These are rough, slot-averaged anchors — never official cutoffs.</p></div>'
+      + '<div class="est-form">'
+      + '<label>Year <select id="estYear">' + yopts + "</select></label>"
+      + '<label>Section <select id="estSec"><option value="O">Overall</option><option value="V">VARC</option><option value="D">DILR</option><option value="Q">QA</option></select></label>'
+      + '<label>Raw score <input id="estScore" type="number" inputmode="numeric" placeholder="e.g. 45"></label>'
+      + '<button class="calc-btn" id="estGo">Estimate</button></div>'
+      + '<div id="estOut" class="markdown-body"></div>'
+      + '<div class="q-tip">ℹ️ Real CAT percentiles come from slot-wise normalisation of scaled scores — two people with the same raw score in different slots can land differently. Use this only to set practice targets. Full anchor data lives in each year\'s <b>Paper insights</b> tab.</div>';
+    function go() {
+      var y = document.getElementById("estYear").value, sec = document.getElementById("estSec").value;
+      var s = parseFloat(document.getElementById("estScore").value);
+      var out = document.getElementById("estOut");
+      var anchors = (PCTL[y] || {})[sec];
+      var secName = { O: "Overall", V: "VARC", D: "DILR", Q: "QA" }[sec];
+      var max = (SECTION_MAX[y] || {})[sec];
+      if (!anchors) {
+        out.innerHTML = "<p>No reliable public benchmark is recorded here for <b>CAT " + y + " " + secName + "</b> — check that year's <b>Paper insights</b> tab for the qualitative picture.</p>";
+        return;
+      }
+      var lines = anchors.map(function (a) { return "<li>~<b>" + a[1] + (max ? "/" + max : "") + "</b> raw ≈ <b>" + a[0] + "th percentile</b> (widely-reported estimate)</li>"; }).join("");
+      var verdict = "";
+      if (isFinite(s)) {
+        var sorted = anchors.slice().sort(function (a, b) { return b[0] - a[0]; });
+        if (s >= sorted[0][1]) verdict = "Your score of <b>" + s + "</b> is <b>at or above the ~" + sorted[0][0] + "th percentile estimate</b> for this paper. 🏆";
+        else {
+          var placed = false;
+          for (var i = 1; i < sorted.length; i++) {
+            if (s >= sorted[i][1]) { verdict = "Your score of <b>" + s + "</b> lands <b>between the ~" + sorted[i][0] + "th and ~" + sorted[i - 1][0] + "th percentile estimates</b>."; placed = true; break; }
+          }
+          if (!placed) verdict = "Your score of <b>" + s + "</b> is <b>below the ~" + sorted[sorted.length - 1][0] + "th percentile anchor</b> shown for this paper — keep going.";
+        }
+        verdict = "<p>" + verdict + "</p>";
+      }
+      out.innerHTML = "<h2>CAT " + y + " · " + secName + "</h2>" + verdict + "<ul>" + lines + "</ul>";
+    }
+    document.getElementById("estGo").onclick = go;
+    document.getElementById("estScore").addEventListener("keydown", function (e) { if (e.key === "Enter") go(); });
+    chapterNavEl.innerHTML = ""; highlightNav(null);
+    document.title = "Percentile Estimator — CAT Prep Question Bank";
+  }
+
+  function renderToolDoc(kind) {
+    var TOOLS = window.CAT_TOOLS || {};
+    var src = kind === "formulas" ? TOOLS.formulas : TOOLS.strategy;
+    contentEl.innerHTML = '<div class="markdown-body">' + md(src || "Content not available.") + "</div>";
+    chapterNavEl.innerHTML = ""; highlightNav(null);
+    document.title = (kind === "formulas" ? "QA Formula Sheet" : "Strategy Playbook") + " — CAT Prep Question Bank";
   }
 
   function renderChapterNav(num) {
@@ -399,11 +698,15 @@
   // ---------- Router ----------
   function route() {
     var hash = location.hash || "#/home";
-    window.scrollTo(0, 0); closeSidebar();
+    window.scrollTo(0, 0); closeSidebar(); clearTimed();
+    if (/^#\/stats/.test(hash)) { renderStats(); return; }
+    var tm = hash.match(/^#\/tools\/(formulas|strategy|percentile)/);
+    if (tm) { if (tm[1] === "percentile") renderPercentile(); else renderToolDoc(tm[1]); return; }
     var m = hash.match(/^#\/ch\/(\d{2,4})\/(notes|questions)/);
     if (m) {
       var num = m[1], view = m[2], c = chapterByNum(num);
       if (!c) { renderHome(); return; }
+      try { localStorage.setItem("cat_last", hash); } catch (e) {}
       if (view === "notes") renderNotes(num); else renderQuestions(num);
       renderChapterNav(num); highlightNav(num, view);
       document.title = c.module + " " + (c.badge || "") + " — CAT Prep Question Bank";
